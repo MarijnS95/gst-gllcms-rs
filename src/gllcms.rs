@@ -14,7 +14,14 @@ use glib::subclass::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
-struct GlLcms {}
+struct State {
+    in_info: gst_video::VideoInfo,
+    out_info: gst_video::VideoInfo,
+}
+
+struct GlLcms {
+    state: Mutex<Option<State>>,
+}
 
 impl GlLcms {}
 
@@ -36,7 +43,9 @@ impl ObjectSubclass for GlLcms {
     glib::glib_object_subclass!();
 
     fn new() -> Self {
-        Self {}
+        Self {
+            state: Mutex::new(None),
+        }
     }
 
     fn class_init(klass: &mut subclass::simple::ClassStruct<Self>) {
@@ -98,7 +107,43 @@ impl ObjectSubclass for GlLcms {
 
 impl ObjectImpl for GlLcms {}
 impl ElementImpl for GlLcms {}
-impl BaseTransformImpl for GlLcms {}
+
+impl BaseTransformImpl for GlLcms {
+    fn set_caps(
+        &self,
+        element: &gst_base::BaseTransform,
+        incaps: &gst::Caps,
+        outcaps: &gst::Caps,
+    ) -> Result<(), gst::LoggableError> {
+        let in_info = gst_video::VideoInfo::from_caps(incaps)
+            // TODO: Include extra info about incaps/outcaps source?
+            .map_err(|e| gst::LoggableError::new(CAT.clone(), e))?;
+
+        let out_info = gst_video::VideoInfo::from_caps(outcaps)
+            .map_err(|e| gst::LoggableError::new(CAT.clone(), e))?;
+
+        gst::gst_debug!(
+            CAT,
+            obj: element,
+            "Configured for caps {} to {}",
+            incaps,
+            outcaps
+        );
+
+        *self.state.lock().unwrap() = Some(State { in_info, out_info });
+
+        Ok(())
+    }
+
+    fn stop(&self, element: &gst_base::BaseTransform) -> Result<(), gst::ErrorMessage> {
+        // Drop state
+        let _ = self.state.lock().unwrap().take();
+
+        gst::gst_info!(CAT, obj: element, "Stopped");
+
+        Ok(())
+    }
+}
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     gst::Element::register(
