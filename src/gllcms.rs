@@ -35,7 +35,7 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 
 impl ObjectSubclass for GlLcms {
     const NAME: &'static str = "gllcms";
-    type ParentType = gst_base::BaseTransform;
+    type ParentType = GLFilter;
     type Instance = gst::subclass::ElementInstanceStruct<Self>;
     type Class = subclass::simple::ClassStruct<Self>;
 
@@ -48,7 +48,7 @@ impl ObjectSubclass for GlLcms {
         }
     }
 
-    fn class_init(klass: &mut subclass::simple::ClassStruct<Self>) {
+    fn class_init(klass: &mut Self::Class) {
         klass.set_metadata(
             "Rust LCMS2-based color correction in OpenGL",
             "Filter/Effect/Converter/Video",
@@ -56,52 +56,22 @@ impl ObjectSubclass for GlLcms {
             env!("CARGO_PKG_AUTHORS"),
         );
 
-        klass.configure(
-            gst_base::subclass::BaseTransformMode::NeverInPlace,
-            false,
-            false,
-        );
+        // klass.configure(
+        //     gst_base::subclass::BaseTransformMode::NeverInPlace,
+        //     false,
+        //     false,
+        // );
 
-        let caps = gst::Caps::builder("video/x-raw")
-            .features(&[
-                &CAPS_FEATURE_MEMORY_GL_MEMORY,
-                // TODO: meta:GstVideoOverlayComposition? That'd be only for input though!
-                // &gst_video::CAPS_FEATURE_META_GST_VIDEO_OVERLAY_COMPOSITION,
-            ])
-            .field("format", &gst_video::VideoFormat::Rgba.to_string())
-            .field("texture-target", &gst::List::new(&[&"2D", &"external-oes"]))
-            // .field("width", &gst::IntRange::<i32>::new(0, i32::MAX))
-            // .field("height", &gst::IntRange::<i32>::new(0, i32::MAX))
-            // .field(
-            //     "framerate",
-            //     &gst::FractionRange::new(gst::Fraction::new(0, 1), gst::Fraction::new(i32::MAX, 1)),
-            // )
-            // TODO: framerate/width/height fields are optional?
-            .build();
+        GLFilter::add_rgba_pad_templates(klass)
+    }
+}
 
-        gst::gst_debug!(CAT, "Using caps {} for input and output", caps);
-
-        let src_pad_template = gst::PadTemplate::new(
-            "src",
-            gst::PadDirection::Src,
-            gst::PadPresence::Always,
-            &caps,
-        )
-        .unwrap();
-
-        gst::gst_debug!(CAT, "Src pad template {:?}", &src_pad_template,);
-        klass.add_pad_template(src_pad_template);
-
-        let sink_pad_template = gst::PadTemplate::new(
-            "sink",
-            gst::PadDirection::Sink,
-            gst::PadPresence::Always,
-            &caps,
-        )
-        .unwrap();
-
-        gst::gst_debug!(CAT, "Sink pad template {:?}", &sink_pad_template);
-        klass.add_pad_template(sink_pad_template);
+unsafe impl IsSubclassable<GlLcms> for GLFilterClass {
+    fn override_vfuncs(&mut self) {
+        <glib::ObjectClass as IsSubclassable<GlLcms>>::override_vfuncs(self);
+        unsafe {
+            let klass = &mut *(self as *mut Self as *mut GLFilterClass);
+        }
     }
 }
 
@@ -109,52 +79,6 @@ impl ObjectImpl for GlLcms {
     glib::glib_object_impl!();
 }
 impl ElementImpl for GlLcms {}
-
-impl BaseTransformImpl for GlLcms {
-    fn set_caps(
-        &self,
-        element: &gst_base::BaseTransform,
-        incaps: &gst::Caps,
-        outcaps: &gst::Caps,
-    ) -> Result<(), gst::LoggableError> {
-        let in_info = gst_video::VideoInfo::from_caps(incaps)
-            // TODO: Include extra info about incaps/outcaps source?
-            .map_err(|e| gst::LoggableError::new(CAT.clone(), e))?;
-
-        let out_info = gst_video::VideoInfo::from_caps(outcaps)
-            .map_err(|e| gst::LoggableError::new(CAT.clone(), e))?;
-
-        gst::gst_debug!(
-            CAT,
-            obj: element,
-            "Configured for caps {} to {}",
-            incaps,
-            outcaps
-        );
-
-        *self.state.lock().unwrap() = Some(State { in_info, out_info });
-
-        Ok(())
-    }
-
-    fn stop(&self, element: &gst_base::BaseTransform) -> Result<(), gst::ErrorMessage> {
-        // Drop state
-        let _ = self.state.lock().unwrap().take();
-
-        gst::gst_info!(CAT, obj: element, "Stopped");
-
-        Ok(())
-    }
-
-    fn get_unit_size(&self, _element: &gst_base::BaseTransform, caps: &gst::Caps) -> Option<usize> {
-        // TODO: This hides any error!
-        gst_video::VideoInfo::from_caps(caps)
-            .map(|info| info.size())
-            .ok()
-    }
-
-    // TODO: Don't need filter_caps yet, I think (since input and output are identical, afaik the base implementation handles that)
-}
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     gst::Element::register(
