@@ -2,6 +2,7 @@ use gst::glib;
 use gst::prelude::*;
 use gst::subclass::prelude::*;
 use gst_base::subclass::prelude::*;
+use gst_gl::subclass::prelude::*;
 use gst_gl::*;
 use gstreamer as gst;
 use gstreamer_base as gst_base;
@@ -14,9 +15,20 @@ use glib::subclass::prelude::*;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
+const GL_FRAGMENT_SHADER: u32 = 0x8B30;
+
+const FRAGMENT_SHADER: &str = r#"
+varying vec2 v_texcoord;
+uniform sampler2D tex;
+void main () {
+    vec4 rgba = texture2D (tex, v_texcoord);
+    // Test swizzle
+    gl_FragColor = rgba.gbra;
+}
+"#;
+
 struct State {
-    in_info: gst_video::VideoInfo,
-    out_info: gst_video::VideoInfo,
+    shader: GLShader,
 }
 
 struct GlLcms {
@@ -70,10 +82,63 @@ impl ObjectImpl for GlLcms {
     glib::glib_object_impl!();
 }
 impl ElementImpl for GlLcms {}
+impl BaseTransformImpl for GlLcms {}
+impl GLBaseFilterImpl for GlLcms {}
 
-impl gst_gl::subclass::GLFilterImpl for GlLcms {
-    fn filter_texture(&self, filter: &GLFilter, input: &GLMemory, output: &GLMemory) -> bool {
-        todo!()
+fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
+    let shader = GLShader::new(context);
+    let version = GLSLVersion::None;
+    let profile = GLSLProfile::ES | GLSLProfile::COMPATIBILITY;
+
+    let vertex = GLSLStage::new_default_vertex(context);
+    vertex.compile().unwrap();
+    shader.attach_unlocked(&vertex).unwrap();
+
+    let shader_parts = [
+        &GLShader::string_get_highest_precision(context, version, profile).unwrap(),
+        FRAGMENT_SHADER,
+    ];
+
+    gst::gst_debug!(
+        CAT,
+        obj: filter,
+        "Compiling fragment shader parts {:?}",
+        &shader_parts
+    );
+
+    let fragment =
+        GLSLStage::with_strings(context, GL_FRAGMENT_SHADER, version, profile, &shader_parts);
+    fragment.compile().unwrap();
+    shader.attach_unlocked(&fragment).unwrap();
+    shader.link().unwrap();
+
+    gst::gst_debug!(CAT, obj: filter, "Successfully linked {:?}", shader);
+
+    shader
+}
+
+impl GLFilterImpl for GlLcms {
+    fn filter_texture(
+        &self,
+        filter: &GLFilter,
+        input: &mut GLMemory,
+        output: &mut GLMemory,
+    ) -> bool {
+        let context = filter.get_property_context().unwrap();
+
+        let mut state = self.state.lock().unwrap();
+
+        if state.is_none() {
+            let shader = create_shader(filter, &context);
+            *state = Some(State { shader });
+        }
+        let State { shader } = state.as_ref().unwrap();
+
+        filter.render_to_target_with_shader(input, output, shader);
+
+        gst::gst_trace!(CAT, obj: filter, "Render finished");
+
+        true
     }
 }
 
