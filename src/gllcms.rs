@@ -66,19 +66,16 @@ impl ObjectSubclass for GlLcms {
     }
 }
 
-unsafe impl IsSubclassable<GlLcms> for GLFilterClass {
-    fn override_vfuncs(&mut self) {
-        <glib::ObjectClass as IsSubclassable<GlLcms>>::override_vfuncs(self);
-        unsafe {
-            let klass = &mut *(self as *mut Self as *mut GLFilterClass);
-        }
-    }
-}
-
 impl ObjectImpl for GlLcms {
     glib::glib_object_impl!();
 }
 impl ElementImpl for GlLcms {}
+
+impl gst_gl::subclass::GLFilterImpl for GlLcms {
+    fn filter_texture(&self, filter: &GLFilter, input: &GLMemory, output: &GLMemory) -> bool {
+        todo!()
+    }
+}
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
     gst::Element::register(
