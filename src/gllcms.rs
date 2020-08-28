@@ -143,6 +143,15 @@ impl BaseTransformImpl for GlLcms {
 
         Ok(())
     }
+
+    fn get_unit_size(&self, _element: &gst_base::BaseTransform, caps: &gst::Caps) -> Option<usize> {
+        // TODO: This hides any error!
+        gst_video::VideoInfo::from_caps(caps)
+            .map(|info| info.size())
+            .ok()
+    }
+
+    // TODO: Don't need filter_caps yet, I think (since input and output are identical, afaik the base implementation handles that)
 }
 
 pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
