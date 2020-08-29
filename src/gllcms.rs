@@ -16,12 +16,15 @@ use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
 const FRAGMENT_SHADER: &str = r#"
-varying vec2 v_texcoord;
+in vec2 v_texcoord;
+out vec4 fragColor;
+
 uniform sampler2D tex;
+
 void main () {
     vec4 rgba = texture2D (tex, v_texcoord);
     // Test swizzle
-    gl_FragColor = rgba.gbra;
+    fragColor = rgba.gbra;
 }
 "#;
 
@@ -83,15 +86,19 @@ impl GLBaseFilterImpl for GlLcms {}
 
 fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     let shader = GLShader::new(context);
-    let version = GLSLVersion::None;
-    let profile = GLSLProfile::ES | GLSLProfile::COMPATIBILITY;
+    let version = GLSLVersion::_400;
+    let profile = GLSLProfile::empty();
 
     let vertex = GLSLStage::new_default_vertex(context);
     vertex.compile().unwrap();
     shader.attach_unlocked(&vertex).unwrap();
 
     let shader_parts = [
-        &GLShader::string_get_highest_precision(context, version, profile).unwrap(),
+        // TODO: This function is only in my branch of gstreamer-rs!
+        &format!(
+            "#version {}",
+            &GLSLVersion::profile_to_string(version, profile).unwrap()
+        ) as &str,
         FRAGMENT_SHADER,
     ];
 
