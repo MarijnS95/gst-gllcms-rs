@@ -7,7 +7,6 @@ use gst_gl::*;
 use gstreamer as gst;
 use gstreamer_base as gst_base;
 use gstreamer_gl as gst_gl;
-use gstreamer_video as gst_video;
 
 use glib::subclass;
 use glib::subclass::prelude::*;

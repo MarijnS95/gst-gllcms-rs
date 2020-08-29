@@ -10,7 +10,6 @@ description = "Transform GL textures using ICC profiles"
 [dependencies]
 gstreamer = { path = "../gstreamer-rs/gstreamer" }
 gstreamer-base = { path = "../gstreamer-rs/gstreamer-base" }
-gstreamer-video = { path = "../gstreamer-rs/gstreamer-video" }
 # Need 1.16 for GLShader::string_get_highest_precision
 gstreamer-gl = { path = "../gstreamer-rs/gstreamer-gl", features = ["v1_16"] }
 lcms2 = "5.3"
