@@ -78,9 +78,7 @@ impl ObjectSubclass for GlLcms {
     }
 }
 
-impl ObjectImpl for GlLcms {
-    glib::glib_object_impl!();
-}
+impl ObjectImpl for GlLcms {}
 impl ElementImpl for GlLcms {}
 impl BaseTransformImpl for GlLcms {}
 impl GLBaseFilterImpl for GlLcms {}
