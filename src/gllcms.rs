@@ -457,20 +457,51 @@ impl GLFilterImpl for GlLcms {
             state.current_settings = Some(settings.clone());
         }
 
-        // Bind the shader in advance to be able to bind our storage buffer
-        shader.use_();
+        gst::gst_trace!(CAT, obj: filter, "Rendering with shader {:?}", shader);
 
-        // Actually bind the lut to `uint lut[];`
-        unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, lut_buffer) };
-        unsafe {
-            gl.BindBufferBase(
-                gl::SHADER_STORAGE_BUFFER,
-                /* binding 0 */ 0,
-                lut_buffer,
-            )
-        };
+        assert!(filter.render_to_target(input, output, |filter, input| {
+            // Bind the shader in advance to be able to bind our storage buffer
+            shader.use_();
 
-        filter.render_to_target_with_shader(input, output, shader);
+            assert!(!context.get_gl_api().contains(GLAPI::OPENGL));
+
+            // Actually bind the lut to `uint lut[];`
+            unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, lut_buffer) };
+            unsafe {
+                gl.BindBufferBase(
+                    gl::SHADER_STORAGE_BUFFER,
+                    /* binding 0 */ 0,
+                    lut_buffer,
+                )
+            };
+
+            use glib::translate::*;
+            let gl_texture_type = GLTextureTarget::to_gl(from_glib(filter.in_texture_target));
+
+            unsafe { gl.ActiveTexture(gl::TEXTURE1) };
+            unsafe { gl.BindTexture(gl_texture_type, input.get_texture_id()) };
+
+            shader.set_uniform_1i("tex", 1);
+
+            let sys_filter: &GstGLFilter = filter;
+
+            #[allow(mutable_transmutes, clippy::transmute_ptr_to_ptr)]
+            let sys_filter: &mut GstGLFilter = unsafe { std::mem::transmute(sys_filter) };
+            sys_filter.draw_attr_position_loc = shader.get_attribute_location("a_position");
+            sys_filter.draw_attr_texture_loc = shader.get_attribute_location("a_texcoord");
+
+            dbg!(filter.draw_attr_position_loc);
+            dbg!(filter.draw_attr_texture_loc);
+            dbg!(sys_filter.draw_attr_position_loc);
+            dbg!(sys_filter.draw_attr_texture_loc);
+
+            shader.set_uniform_1f("width", filter.out_info.width as f32);
+            shader.set_uniform_1f("height", filter.out_info.height as f32);
+
+            filter.draw_fullscreen_quad();
+
+            true
+        }));
 
         // Cleanup
         unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, 0) };
