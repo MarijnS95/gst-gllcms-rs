@@ -31,11 +31,18 @@ in vec2 v_texcoord;
 out vec4 fragColor;
 
 uniform sampler2D tex;
+layout(binding = 0)
+buffer lutTable
+{
+    int lut[];
+};
 
 void main () {
     vec4 rgba = texture2D (tex, v_texcoord);
-    // Test swizzle
-    fragColor = rgba.gbra;
+    vec4 rgb_ = vec4(rgba.xyz, 0);
+    uint idx = packUnorm4x8(rgb_);
+    vec3 rgb = unpackUnorm4x8(lut[idx]).xyz;
+    fragColor = vec4(rgb, 1);
 }
 "#;
 
@@ -67,6 +74,8 @@ impl Default for Settings {
 
 struct State {
     shader: GLShader,
+    gl: gl::Gl,
+    lut_buffer: gl::types::GLuint,
 }
 
 struct GlLcms {
@@ -247,7 +256,9 @@ impl GLBaseFilterImpl for GlLcms {}
 
 fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     let shader = GLShader::new(context);
-    let version = GLSLVersion::_400;
+    // 400 For (un)packUnorm
+    // 430 for SSBO (https://www.khronos.org/opengl/wiki/Shader_Storage_Buffer_Object)
+    let version = GLSLVersion::_430;
     let profile = GLSLProfile::empty();
 
     // let vertex = GLSLStage::new_default_vertex(context);
@@ -305,6 +316,24 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     shader
 }
 
+fn create_ssbo_with_data(gl: &gl::Gl, data: &[u32]) -> u32 {
+    let mut ssbo = std::mem::MaybeUninit::uninit();
+    unsafe { gl.GenBuffers(1, ssbo.as_mut_ptr()) };
+    let ssbo = unsafe { ssbo.assume_init() };
+
+    // Bind in SSBO slot and upload data
+    unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, ssbo) };
+    unsafe {
+        gl.BufferStorage(
+            gl::SHADER_STORAGE_BUFFER,
+            (data.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,
+            data.as_ptr() as *const _,
+            0,
+        )
+    };
+    ssbo
+}
+
 impl GLFilterImpl for GlLcms {
     fn filter_texture(
         &self,
@@ -318,11 +347,50 @@ impl GLFilterImpl for GlLcms {
 
         if state.is_none() {
             let shader = create_shader(filter, &context);
-            *state = Some(State { shader });
+
+            // TODO: Should perhaps use Gst types, even though they appear to implement more complex complex and unnecessary features like automatic CPU mapping/copying
+            let gl = gl::Gl::load_with(|fn_name| context.get_proc_address(fn_name) as _);
+
+            let color_lut = (0..0x1_00_00_00).rev().collect::<Vec<_>>();
+
+            let lut_buffer = create_ssbo_with_data(&gl, &color_lut);
+            gst::gst_trace!(
+                CAT,
+                obj: filter,
+                "Created SSBO containing lut at {:?}",
+                lut_buffer
+            );
+
+            *state = Some(State {
+                shader,
+                gl,
+                lut_buffer,
+            });
         }
-        let State { shader } = state.as_ref().unwrap();
+        let State {
+            shader,
+            gl,
+            lut_buffer,
+        } = state.as_ref().unwrap();
+        let lut_buffer = *lut_buffer;
+
+        // Bind the shader in advance to be able to bind our storage buffer
+        shader.use_();
+
+        // Actually bind the lut to `uint lut[];`
+        unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, lut_buffer) };
+        unsafe {
+            gl.BindBufferBase(
+                gl::SHADER_STORAGE_BUFFER,
+                /* binding 0 */ 0,
+                lut_buffer,
+            )
+        };
 
         filter.render_to_target_with_shader(input, output, shader);
+
+        // Cleanup
+        unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, 0) };
 
         gst::gst_trace!(CAT, obj: filter, "Render finished");
 
