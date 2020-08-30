@@ -39,13 +39,121 @@ void main () {
 }
 "#;
 
+const DEFAULT_BRIGHTNESS: f64 = 0f64;
+const DEFAULT_CONTRAST: f64 = 1f64;
+const DEFAULT_HUE: f64 = 0f64;
+const DEFAULT_SATURATION: f64 = 0f64;
+
+#[derive(Debug, Clone, PartialEq)]
+struct Settings {
+    icc: Option<String>,
+    brightness: f64,
+    contrast: f64,
+    hue: f64,
+    saturation: f64,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            icc: None,
+            brightness: DEFAULT_BRIGHTNESS,
+            contrast: DEFAULT_CONTRAST,
+            hue: DEFAULT_HUE,
+            saturation: DEFAULT_SATURATION,
+        }
+    }
+}
+
 struct State {
     shader: GLShader,
 }
 
 struct GlLcms {
+    // TODO: Need multi-reader lock?
+    settings: Mutex<Settings>,
     state: Mutex<Option<State>>,
 }
+
+static PROPERTIES: &[subclass::Property] = &[
+    subclass::Property("icc", |name| {
+        glib::ParamSpec::string(
+            name,
+            "ICC Profile",
+            "Path to ICC color profile",
+            None,
+            glib::ParamFlags::READWRITE,
+        )
+    }),
+    subclass::Property("brightness", |name| {
+        glib::ParamSpec::double(
+            name,
+            "Bright",
+            "Extra brightness correction",
+            // TODO: Docs don't clarify min and max!
+            -1f64,
+            1f64,
+            DEFAULT_BRIGHTNESS,
+            glib::ParamFlags::READWRITE,
+        )
+    }),
+    subclass::Property("contrast", |name| {
+        glib::ParamSpec::double(
+            name,
+            "Contrast",
+            "Extra contrast correction",
+            // TODO: Docs don't clarify min and max!
+            0f64,
+            2f64,
+            DEFAULT_CONTRAST,
+            glib::ParamFlags::READWRITE,
+        )
+    }),
+    subclass::Property("hue", |name| {
+        glib::ParamSpec::double(
+            name,
+            "Hue",
+            "Extra hue displacement in degrees",
+            0f64,
+            360f64,
+            DEFAULT_HUE,
+            glib::ParamFlags::READWRITE,
+        )
+    }),
+    subclass::Property("saturation", |name| {
+        glib::ParamSpec::double(
+            name,
+            "Saturation",
+            "Extra saturation correction",
+            // TODO: Docs don't clarify min and max!
+            -1f64,
+            1f64,
+            DEFAULT_SATURATION,
+            glib::ParamFlags::READWRITE,
+        )
+    }),
+    // TODO: Model white balance src+dest as structure
+    /*
+    subclass::Property("temp", |name| {
+        glib::ParamSpec::value_array(
+            name,
+            "Source temperature",
+            "Source white point temperature",
+            &glib::ParamSpec::uint(
+                name,
+                "Source temperature",
+                "Source white point temperature",
+                // TODO: Docs don't clarify min and max!
+                0,
+                std::u32::MAX,
+                0,
+                glib::ParamFlags::READWRITE,
+            ),
+            glib::ParamFlags::READWRITE,
+        )
+    }),
+    */
+];
 
 impl GlLcms {}
 
@@ -68,6 +176,7 @@ impl ObjectSubclass for GlLcms {
 
     fn new() -> Self {
         Self {
+            settings: Mutex::new(Default::default()),
             state: Mutex::new(None),
         }
     }
@@ -80,6 +189,8 @@ impl ObjectSubclass for GlLcms {
             env!("CARGO_PKG_AUTHORS"),
         );
 
+        klass.install_properties(&PROPERTIES);
+
         // klass.configure(
         //     gst_base::subclass::BaseTransformMode::NeverInPlace,
         //     false,
@@ -90,7 +201,46 @@ impl ObjectSubclass for GlLcms {
     }
 }
 
-impl ObjectImpl for GlLcms {}
+impl ObjectImpl for GlLcms {
+    fn set_property(&self, obj: &glib::Object, id: usize, value: &glib::Value) {
+        let prop = &PROPERTIES[id];
+        let element = obj.downcast_ref::<gst_base::BaseTransform>().unwrap();
+
+        gst::gst_info!(CAT, obj: element, "Changing {:?} to {:?}", prop, value);
+
+        let mut settings = self.settings.lock().unwrap();
+
+        match prop.0 {
+            "icc" => settings.icc = value.get().expect("Type mismatch"),
+            "brightness" => settings.brightness = value.get_some().expect("Type mismatch"),
+            "contrast" => settings.contrast = value.get_some().expect("Type mismatch"),
+            "hue" => settings.hue = value.get_some().expect("Type mismatch"),
+            "saturation" => settings.saturation = value.get_some().expect("Type mismatch"),
+            _ => {
+                let element = obj.downcast_ref::<gst_base::BaseTransform>().unwrap();
+                gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
+            }
+        }
+    }
+
+    fn get_property(&self, obj: &glib::Object, id: usize) -> Result<glib::Value, ()> {
+        let prop = &PROPERTIES[id];
+        let settings = self.settings.lock().unwrap();
+
+        match prop.0 {
+            "icc" => Ok(settings.icc.to_value()),
+            "brightness" => Ok(settings.brightness.to_value()),
+            "contrast" => Ok(settings.contrast.to_value()),
+            "hue" => Ok(settings.hue.to_value()),
+            "saturation" => Ok(settings.saturation.to_value()),
+            _ => {
+                let element = obj.downcast_ref::<gst_base::BaseTransform>().unwrap();
+                gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
+                Err(())
+            }
+        }
+    }
+}
 impl ElementImpl for GlLcms {}
 impl BaseTransformImpl for GlLcms {}
 impl GLBaseFilterImpl for GlLcms {}
