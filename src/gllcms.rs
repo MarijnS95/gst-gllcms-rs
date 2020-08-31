@@ -9,7 +9,6 @@ use gstreamer_base as gst_base;
 use gstreamer_gl as gst_gl;
 
 use glib::subclass;
-use glib::subclass::prelude::*;
 
 use gfx_gl as gl;
 use lcms2::*;
