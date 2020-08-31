@@ -12,6 +12,7 @@ use glib::subclass;
 use glib::subclass::prelude::*;
 
 use gfx_gl as gl;
+use lcms2::*;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
@@ -76,6 +77,7 @@ struct State {
     shader: GLShader,
     gl: gl::Gl,
     lut_buffer: gl::types::GLuint,
+    current_settings: Option<Settings>,
 }
 
 struct GlLcms {
@@ -316,22 +318,10 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     shader
 }
 
-fn create_ssbo_with_data(gl: &gl::Gl, data: &[u32]) -> u32 {
+fn create_ssbo(gl: &gl::Gl) -> u32 {
     let mut ssbo = std::mem::MaybeUninit::uninit();
     unsafe { gl.GenBuffers(1, ssbo.as_mut_ptr()) };
-    let ssbo = unsafe { ssbo.assume_init() };
-
-    // Bind in SSBO slot and upload data
-    unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, ssbo) };
-    unsafe {
-        gl.BufferStorage(
-            gl::SHADER_STORAGE_BUFFER,
-            (data.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,
-            data.as_ptr() as *const _,
-            0,
-        )
-    };
-    ssbo
+    unsafe { ssbo.assume_init() }
 }
 
 impl GLFilterImpl for GlLcms {
@@ -345,15 +335,15 @@ impl GLFilterImpl for GlLcms {
 
         let mut state = self.state.lock().unwrap();
 
-        if state.is_none() {
+        let state = if let Some(state) = &mut *state {
+            state
+        } else {
             let shader = create_shader(filter, &context);
 
             // TODO: Should perhaps use Gst types, even though they appear to implement more complex complex and unnecessary features like automatic CPU mapping/copying
             let gl = gl::Gl::load_with(|fn_name| context.get_proc_address(fn_name) as _);
 
-            let color_lut = (0..0x1_00_00_00).rev().collect::<Vec<_>>();
-
-            let lut_buffer = create_ssbo_with_data(&gl, &color_lut);
+            let lut_buffer = create_ssbo(&gl);
             gst::gst_trace!(
                 CAT,
                 obj: filter,
@@ -365,14 +355,77 @@ impl GLFilterImpl for GlLcms {
                 shader,
                 gl,
                 lut_buffer,
+                current_settings: None,
             });
-        }
+            state.as_mut().unwrap()
+        };
+
+        // Unpack references to struct members
         let State {
             shader,
             gl,
             lut_buffer,
-        } = state.as_ref().unwrap();
+            current_settings,
+        } = state;
         let lut_buffer = *lut_buffer;
+
+        let settings = &*self.settings.lock().unwrap();
+        if current_settings.as_ref() != Some(settings) {
+            gst::gst_trace!(CAT, obj: filter, "Settings changed, updating LUT");
+
+            if settings == &Default::default() {
+                gst::gst_warning!(
+                    CAT,
+                    obj: filter,
+                    "gllcms without options does nothing, performing mem -> mem copy"
+                );
+
+                todo!("Implement memcpy");
+                // return true;
+            }
+
+            gst::gst_info!(CAT, obj: filter, "Creating LUT from {:?}", settings);
+
+            let mut profiles = vec![];
+
+            if let Some(icc) = &settings.icc {
+                let custom_profile = Profile::new_file(icc).unwrap();
+                profiles.push(custom_profile);
+            }
+
+            // Use sRGB as output profile, last in the chain
+            let output_profile = Profile::new_srgb();
+            profiles.push(output_profile);
+
+            // Turn into vec of references
+            let profiles = profiles.iter().collect::<Vec<_>>();
+            let t = Transform::new_multiprofile(
+                &profiles,
+                PixelFormat::RGBA_8,
+                PixelFormat::RGBA_8,
+                Intent::Perceptual,
+                // TODO: Check all flags
+                Flags::NO_NEGATIVES | Flags::KEEP_SEQUENCE,
+            )
+            .unwrap();
+
+            let mut source_pixels = (0..0x1_00_00_00).collect::<Vec<_>>();
+            t.transform_in_place(&mut source_pixels);
+
+            // Bind in SSBO slot and upload data
+            unsafe { gl.BindBuffer(gl::SHADER_STORAGE_BUFFER, lut_buffer) };
+            unsafe {
+                // BufferStorage to keep the buffer mutable, in contrast to BufferStorage
+                gl.BufferStorage(
+                    gl::SHADER_STORAGE_BUFFER,
+                    (source_pixels.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,
+                    source_pixels.as_ptr() as *const _,
+                    0,
+                )
+            };
+
+            state.current_settings = Some(settings.clone());
+        }
 
         // Bind the shader in advance to be able to bind our storage buffer
         shader.use_();
