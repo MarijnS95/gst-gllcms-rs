@@ -8,6 +8,7 @@ edition = "2018"
 description = "Transform GL textures using ICC profiles"
 
 [dependencies]
+gfx_gl = "0.6"
 gstreamer = { path = "../gstreamer-rs/gstreamer" }
 gstreamer-base = { path = "../gstreamer-rs/gstreamer-base" }
 # Need 1.16 for GLShader::string_get_highest_precision

@@ -11,10 +11,9 @@ use gstreamer_gl as gst_gl;
 use glib::subclass;
 use glib::subclass::prelude::*;
 
+use gfx_gl as gl;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
-
-const GL_FRAGMENT_SHADER: u32 = 0x8B30;
 
 const FRAGMENT_SHADER: &str = r#"
 varying vec2 v_texcoord;
@@ -103,8 +102,13 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
         &shader_parts
     );
 
-    let fragment =
-        GLSLStage::with_strings(context, GL_FRAGMENT_SHADER, version, profile, &shader_parts);
+    let fragment = GLSLStage::with_strings(
+        context,
+        gl::FRAGMENT_SHADER,
+        version,
+        profile,
+        &shader_parts,
+    );
     fragment.compile().unwrap();
     shader.attach_unlocked(&fragment).unwrap();
     shader.link().unwrap();
