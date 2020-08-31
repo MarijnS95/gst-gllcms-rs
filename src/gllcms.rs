@@ -409,21 +409,35 @@ impl GLFilterImpl for GlLcms {
 
             // Use sRGB as output profile, last in the chain
             let output_profile = Profile::new_srgb();
-            profiles.push(output_profile);
 
             // TODO: bcsh on its own breaks Transform construction
 
-            // Turn into vec of references
-            let profiles = profiles.iter().collect::<Vec<_>>();
-            let t = Transform::new_multiprofile(
-                &profiles,
-                PixelFormat::RGBA_8,
-                PixelFormat::RGBA_8,
-                Intent::Perceptual,
-                // TODO: Check all flags
-                Flags::NO_NEGATIVES | Flags::KEEP_SEQUENCE,
-            )
-            .unwrap();
+            let t = match &profiles[..] {
+                [single_profile] => Transform::new(
+                    &single_profile,
+                    PixelFormat::RGBA_8,
+                    &output_profile,
+                    PixelFormat::RGBA_8,
+                    Intent::Perceptual,
+                )
+                .unwrap(),
+                _ => {
+                    // Output profile is last in the chain
+                    profiles.push(output_profile);
+
+                    // Turn into vec of references
+                    let profiles = profiles.iter().collect::<Vec<_>>();
+                    Transform::new_multiprofile(
+                        &profiles,
+                        PixelFormat::RGBA_8,
+                        PixelFormat::RGBA_8,
+                        Intent::Perceptual,
+                        // TODO: Check all flags
+                        Flags::NO_NEGATIVES | Flags::KEEP_SEQUENCE,
+                    )
+                    .unwrap()
+                }
+            };
 
             let mut source_pixels = (0..0x1_00_00_00).collect::<Vec<_>>();
             t.transform_in_place(&mut source_pixels);
