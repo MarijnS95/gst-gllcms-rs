@@ -15,6 +15,17 @@ use gfx_gl as gl;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
+// Default vertex shader from gst_gl_shader_string_vertex_default
+const VERTEX_SHADER: &str = r#"
+in vec4 a_position;
+in vec2 a_texcoord;
+out vec2 v_texcoord;
+void main()
+{
+   gl_Position = a_position;
+   v_texcoord = a_texcoord;
+}"#;
+
 const FRAGMENT_SHADER: &str = r#"
 in vec2 v_texcoord;
 out vec4 fragColor;
@@ -89,7 +100,26 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     let version = GLSLVersion::_400;
     let profile = GLSLProfile::empty();
 
-    let vertex = GLSLStage::new_default_vertex(context);
+    // let vertex = GLSLStage::new_default_vertex(context);
+    // new_default_vertex assumes GLSLVersion::None and ES | COMPATIBILITY profile
+    let shader_parts = [
+        // TODO: This function is only in my branch of gstreamer-rs!
+        &format!(
+            "#version {}",
+            &GLSLVersion::profile_to_string(version, profile).unwrap()
+        ) as &str,
+        VERTEX_SHADER,
+    ];
+
+    gst::gst_debug!(
+        CAT,
+        obj: filter,
+        "Compiling vertex shader parts {:?}",
+        &shader_parts
+    );
+
+    let vertex =
+        GLSLStage::with_strings(context, gl::VERTEX_SHADER, version, profile, &shader_parts);
     vertex.compile().unwrap();
     shader.attach_unlocked(&vertex).unwrap();
 
