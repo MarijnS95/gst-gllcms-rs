@@ -102,8 +102,8 @@ static PROPERTIES: &[subclass::Property] = &[
             "Bright",
             "Extra brightness correction",
             // TODO: Docs don't clarify min and max!
-            -1f64,
-            1f64,
+            f64::MIN,
+            f64::MAX,
             DEFAULT_BRIGHTNESS,
             glib::ParamFlags::READWRITE,
         )
@@ -114,8 +114,8 @@ static PROPERTIES: &[subclass::Property] = &[
             "Contrast",
             "Extra contrast correction",
             // TODO: Docs don't clarify min and max!
-            0f64,
-            2f64,
+            f64::MIN,
+            f64::MAX,
             DEFAULT_CONTRAST,
             glib::ParamFlags::READWRITE,
         )
@@ -137,8 +137,8 @@ static PROPERTIES: &[subclass::Property] = &[
             "Saturation",
             "Extra saturation correction",
             // TODO: Docs don't clarify min and max!
-            -1f64,
-            1f64,
+            f64::MIN,
+            f64::MAX,
             DEFAULT_SATURATION,
             glib::ParamFlags::READWRITE,
         )
