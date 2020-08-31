@@ -393,9 +393,25 @@ impl GLFilterImpl for GlLcms {
                 profiles.push(custom_profile);
             }
 
+            // TODO: Put these four settings in a separate struct for easy Default comparison and elision
+            let bcsh = Profile::new_bchsw_abstract_context(
+                GlobalContext::new(),
+                // Can't have more than 255 points... Is this per-axis (as it's rather slow)?
+                255,
+                settings.brightness,
+                settings.contrast,
+                settings.hue,
+                settings.saturation,
+                /* No color temperature support yet */ None,
+            )
+            .unwrap();
+            profiles.push(bcsh);
+
             // Use sRGB as output profile, last in the chain
             let output_profile = Profile::new_srgb();
             profiles.push(output_profile);
+
+            // TODO: bcsh on its own breaks Transform construction
 
             // Turn into vec of references
             let profiles = profiles.iter().collect::<Vec<_>>();
