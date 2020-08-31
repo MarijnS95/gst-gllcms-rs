@@ -40,10 +40,14 @@ buffer lutTable
 
 void main () {
     vec4 rgba = texture2D (tex, v_texcoord);
-    vec4 rgb_ = vec4(rgba.xyz, 0);
-    uint idx = packUnorm4x8(rgb_);
-    vec3 rgb = unpackUnorm4x8(lut[idx]).xyz;
-    fragColor = vec4(rgb, 1);
+    if (v_texcoord.x > 0.5) {
+        fragColor = rgba;
+    } else {
+        vec4 rgb_ = vec4(rgba.xyz, 0);
+        uint idx = packUnorm4x8(rgb_);
+        vec3 rgb = unpackUnorm4x8(lut[idx]).xyz;
+        fragColor = vec4(rgb, 1);
+    }
 }
 "#;
 
