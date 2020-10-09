@@ -205,11 +205,13 @@ impl ObjectSubclass for GlLcms {
 
         klass.install_properties(&PROPERTIES);
 
-        // klass.configure(
-        //     gst_base::subclass::BaseTransformMode::NeverInPlace,
-        //     false,
-        //     false,
-        // );
+        klass.configure(
+            gst_base::subclass::BaseTransformMode::NeverInPlace,
+            false,
+            false,
+        );
+
+        klass.configure_glfilter(gst_gl::subclass::GLFilterMode::Texture);
 
         GLFilter::add_rgba_pad_templates(klass)
     }
