@@ -1,5 +1,4 @@
 use gst::glib;
-use gstreamer as gst;
 
 gst::gst_plugin_define!(
     gllcms,

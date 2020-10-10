@@ -1,16 +1,11 @@
+use glib::subclass;
 use gst::glib;
 use gst::prelude::*;
 use gst::subclass::prelude::*;
 use gst_base::subclass::prelude::*;
 use gst_gl::subclass::prelude::*;
 use gst_gl::*;
-use gstreamer as gst;
-use gstreamer_base as gst_base;
-use gstreamer_gl as gst_gl;
 
-use glib::subclass;
-
-use gfx_gl as gl;
 use lcms2::*;
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
