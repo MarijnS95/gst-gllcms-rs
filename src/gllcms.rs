@@ -4,6 +4,7 @@ use gst::prelude::*;
 use gst::subclass::prelude::*;
 use gst_base::subclass::prelude::*;
 use gst_gl::subclass::prelude::*;
+use gst_gl::subclass::GLFilterMode;
 use gst_gl::*;
 
 use lcms2::*;
@@ -206,8 +207,6 @@ impl ObjectSubclass for GlLcms {
             false,
         );
 
-        klass.configure_glfilter(gst_gl::subclass::GLFilterMode::Texture);
-
         GLFilter::add_rgba_pad_templates(klass)
     }
 }
@@ -320,11 +319,15 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
 
 fn create_ssbo(gl: &gl::Gl) -> u32 {
     let mut ssbo = std::mem::MaybeUninit::uninit();
-    unsafe { gl.GenBuffers(1, ssbo.as_mut_ptr()) };
-    unsafe { ssbo.assume_init() }
+    unsafe {
+        gl.GenBuffers(1, ssbo.as_mut_ptr());
+        ssbo.assume_init()
+    }
 }
 
 impl GLFilterImpl for GlLcms {
+    const MODE: GLFilterMode = GLFilterMode::Texture;
+
     fn filter_texture(
         &self,
         filter: &GLFilter,
