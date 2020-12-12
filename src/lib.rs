@@ -1,4 +1,5 @@
 use gst::glib;
+use gst::subclass::prelude::*;
 
 gst::gst_plugin_define!(
     gllcms,
@@ -15,6 +16,15 @@ gst::gst_plugin_define!(
 
 mod gllcms;
 
+glib::glib_wrapper! {
+    pub struct GlLcms(ObjectSubclass<gllcms::GlLcms>) @extends gst_gl::GLFilter, gst_gl::GLBaseFilter;
+}
+
 fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    gllcms::register(plugin)
+    gst::Element::register(
+        Some(plugin),
+        gllcms::GlLcms::NAME,
+        gst::Rank::None,
+        gllcms::GlLcms::get_type(),
+    )
 }

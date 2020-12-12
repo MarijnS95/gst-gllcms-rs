@@ -79,7 +79,7 @@ struct State {
     current_settings: Option<Settings>,
 }
 
-struct GlLcms {
+pub struct GlLcms {
     // TODO: Need multi-reader lock?
     settings: Mutex<Settings>,
     state: Mutex<Option<State>>,
@@ -165,8 +165,6 @@ static PROPERTIES: &[subclass::Property] = &[
     */
 ];
 
-impl GlLcms {}
-
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
         "gllcms",
@@ -180,6 +178,7 @@ impl ObjectSubclass for GlLcms {
     type ParentType = GLFilter;
     type Instance = gst::subclass::ElementInstanceStruct<Self>;
     type Class = subclass::simple::ClassStruct<Self>;
+    type Type = super::GlLcms;
 
     // This macro provides some boilerplate
     glib::glib_object_subclass!();
@@ -207,14 +206,13 @@ impl ObjectSubclass for GlLcms {
             false,
         );
 
-        GLFilter::add_rgba_pad_templates(klass)
+        klass.add_rgba_pad_templates();
     }
 }
 
 impl ObjectImpl for GlLcms {
-    fn set_property(&self, obj: &glib::Object, id: usize, value: &glib::Value) {
+    fn set_property(&self, element: &Self::Type, id: usize, value: &glib::Value) {
         let prop = &PROPERTIES[id];
-        let element = obj.downcast_ref::<gst_base::BaseTransform>().unwrap();
 
         gst::gst_info!(CAT, obj: element, "Changing {:?} to {:?}", prop, value);
 
@@ -227,13 +225,12 @@ impl ObjectImpl for GlLcms {
             "hue" => settings.hue = value.get_some().expect("Type mismatch"),
             "saturation" => settings.saturation = value.get_some().expect("Type mismatch"),
             _ => {
-                let element = obj.downcast_ref::<gst_base::BaseTransform>().unwrap();
                 gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
             }
         }
     }
 
-    fn get_property(&self, obj: &glib::Object, id: usize) -> Result<glib::Value, ()> {
+    fn get_property(&self, element: &Self::Type, id: usize) -> Result<glib::Value, ()> {
         let prop = &PROPERTIES[id];
         let settings = self.settings.lock().unwrap();
 
@@ -244,7 +241,6 @@ impl ObjectImpl for GlLcms {
             "hue" => Ok(settings.hue.to_value()),
             "saturation" => Ok(settings.saturation.to_value()),
             _ => {
-                let element = obj.downcast_ref::<gst_base::BaseTransform>().unwrap();
                 gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
                 Err(())
             }
@@ -255,7 +251,7 @@ impl ElementImpl for GlLcms {}
 impl BaseTransformImpl for GlLcms {}
 impl GLBaseFilterImpl for GlLcms {}
 
-fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
+fn create_shader(filter: &super::GlLcms, context: &GLContext) -> GLShader {
     let shader = GLShader::new(context);
     // 400 For (un)packUnorm
     // 430 for SSBO (https://www.khronos.org/opengl/wiki/Shader_Storage_Buffer_Object)
@@ -265,7 +261,6 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     // let vertex = GLSLStage::new_default_vertex(context);
     // new_default_vertex assumes GLSLVersion::None and ES | COMPATIBILITY profile
     let shader_parts = [
-        // TODO: This function is only in my branch of gstreamer-rs!
         &format!(
             "#version {}",
             &GLSLVersion::profile_to_string(version, profile).unwrap()
@@ -286,7 +281,6 @@ fn create_shader(filter: &GLFilter, context: &GLContext) -> GLShader {
     shader.attach_unlocked(&vertex).unwrap();
 
     let shader_parts = [
-        // TODO: This function is only in my branch of gstreamer-rs!
         &format!(
             "#version {}",
             &GLSLVersion::profile_to_string(version, profile).unwrap()
@@ -330,7 +324,7 @@ impl GLFilterImpl for GlLcms {
 
     fn filter_texture(
         &self,
-        filter: &GLFilter,
+        filter: &Self::Type,
         input: &mut GLMemory,
         output: &mut GLMemory,
     ) -> bool {
@@ -482,13 +476,4 @@ impl GLFilterImpl for GlLcms {
 
         true
     }
-}
-
-pub fn register(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
-    gst::Element::register(
-        Some(plugin),
-        GlLcms::NAME,
-        gst::Rank::None,
-        GlLcms::get_type(),
-    )
 }
