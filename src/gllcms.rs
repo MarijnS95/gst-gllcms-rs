@@ -230,19 +230,19 @@ impl ObjectImpl for GlLcms {
         }
     }
 
-    fn get_property(&self, element: &Self::Type, id: usize) -> Result<glib::Value, ()> {
+    fn get_property(&self, element: &Self::Type, id: usize) -> glib::Value {
         let prop = &PROPERTIES[id];
         let settings = self.settings.lock().unwrap();
 
         match prop.0 {
-            "icc" => Ok(settings.icc.to_value()),
-            "brightness" => Ok(settings.brightness.to_value()),
-            "contrast" => Ok(settings.contrast.to_value()),
-            "hue" => Ok(settings.hue.to_value()),
-            "saturation" => Ok(settings.saturation.to_value()),
+            "icc" => settings.icc.to_value(),
+            "brightness" => settings.brightness.to_value(),
+            "contrast" => settings.contrast.to_value(),
+            "hue" => settings.hue.to_value(),
+            "saturation" => settings.saturation.to_value(),
             _ => {
                 gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
-                Err(())
+                unimplemented!()
             }
         }
     }
