@@ -181,7 +181,7 @@ impl ObjectSubclass for GlLcms {
     type Type = super::GlLcms;
 
     // This macro provides some boilerplate
-    glib::glib_object_subclass!();
+    glib::object_subclass!();
 
     fn new() -> Self {
         Self {

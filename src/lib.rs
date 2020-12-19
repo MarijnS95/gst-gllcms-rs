@@ -16,7 +16,7 @@ gst::gst_plugin_define!(
 
 mod gllcms;
 
-glib::glib_wrapper! {
+glib::wrapper! {
     pub struct GlLcms(ObjectSubclass<gllcms::GlLcms>) @extends gst_gl::GLFilter, gst_gl::GLBaseFilter;
 }
 
