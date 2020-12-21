@@ -1,8 +1,8 @@
 use glib::subclass;
-use gst::glib;
-use gst::prelude::*;
-use gst::subclass::prelude::*;
-use gst_base::subclass::prelude::*;
+use gst_gl::gst::glib;
+use gst_gl::gst::subclass::prelude::*;
+use gst_gl::gst_base::subclass::prelude::*;
+use gst_gl::prelude::*;
 use gst_gl::subclass::prelude::*;
 use gst_gl::subclass::GLFilterMode;
 use gst_gl::*;

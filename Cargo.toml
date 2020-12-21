@@ -9,8 +9,6 @@ description = "Transform GL textures using ICC profiles"
 
 [dependencies]
 gl = { package = "gfx_gl", version = "0.6" }
-gst = { package = "gstreamer", git = "https://gitlab.freedesktop.org/MarijnS95/gstreamer-rs.git", branch = "glfilter" }
-gst_base = { package = "gstreamer-base", git = "https://gitlab.freedesktop.org/MarijnS95/gstreamer-rs.git", branch = "glfilter" }
 # Need 1.16 for GLShader::string_get_highest_precision
 gst_gl = { package = "gstreamer-gl", git = "https://gitlab.freedesktop.org/MarijnS95/gstreamer-rs.git", branch = "glfilter", features = ["v1_16"] }
 lcms2 = "5.4"

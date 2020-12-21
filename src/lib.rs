@@ -1,5 +1,6 @@
 use gst::glib;
 use gst::subclass::prelude::*;
+use gst_gl::gst;
 
 gst::plugin_define!(
     gllcms,
