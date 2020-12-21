@@ -1,7 +1,7 @@
 use gst::glib;
 use gst::subclass::prelude::*;
 
-gst::gst_plugin_define!(
+gst::plugin_define!(
     gllcms,
     env!("CARGO_PKG_DESCRIPTION"),
     plugin_init,
