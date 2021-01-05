@@ -322,12 +322,7 @@ fn create_ssbo(gl: &gl::Gl) -> u32 {
 impl GLFilterImpl for GlLcms {
     const MODE: GLFilterMode = GLFilterMode::Texture;
 
-    fn filter_texture(
-        &self,
-        filter: &Self::Type,
-        input: &mut GLMemory,
-        output: &mut GLMemory,
-    ) -> bool {
+    fn filter_texture(&self, filter: &Self::Type, input: &GLMemory, output: &mut GLMemory) -> bool {
         let context = filter.get_property_context().unwrap();
 
         let mut state = self.state.lock().unwrap();
