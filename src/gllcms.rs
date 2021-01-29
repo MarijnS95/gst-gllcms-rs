@@ -1,4 +1,6 @@
 use glib::subclass;
+use gst::subclass::ElementMetadata;
+use gst_base::subclass::BaseTransformMode;
 use gst_gl::gst::glib;
 use gst_gl::gst::subclass::prelude::*;
 use gst_gl::gst_base::subclass::prelude::*;
@@ -35,7 +37,7 @@ buffer lutTable
 
 void main () {
     vec4 rgba = texture2D (tex, v_texcoord);
-    if (v_texcoord.x > 0.5) {
+    if (v_texcoord.y > 0.5) {
         fragColor = rgba;
     } else {
         vec4 rgb_ = vec4(rgba.xyz, 0);
@@ -85,19 +87,17 @@ pub struct GlLcms {
     state: Mutex<Option<State>>,
 }
 
-static PROPERTIES: &[subclass::Property] = &[
-    subclass::Property("icc", |name| {
+static PROPERTIES: Lazy<[glib::ParamSpec; 5]> = Lazy::new(|| {
+    [
         glib::ParamSpec::string(
-            name,
+            "icc",
             "ICC Profile",
             "Path to ICC color profile",
             None,
             glib::ParamFlags::READWRITE,
-        )
-    }),
-    subclass::Property("brightness", |name| {
+        ),
         glib::ParamSpec::double(
-            name,
+            "brightness",
             "Bright",
             "Extra brightness correction",
             // TODO: Docs don't clarify min and max!
@@ -105,11 +105,9 @@ static PROPERTIES: &[subclass::Property] = &[
             f64::MAX,
             DEFAULT_BRIGHTNESS,
             glib::ParamFlags::READWRITE,
-        )
-    }),
-    subclass::Property("contrast", |name| {
+        ),
         glib::ParamSpec::double(
-            name,
+            "contrast",
             "Contrast",
             "Extra contrast correction",
             // TODO: Docs don't clarify min and max!
@@ -117,22 +115,18 @@ static PROPERTIES: &[subclass::Property] = &[
             f64::MAX,
             DEFAULT_CONTRAST,
             glib::ParamFlags::READWRITE,
-        )
-    }),
-    subclass::Property("hue", |name| {
+        ),
         glib::ParamSpec::double(
-            name,
+            "hue",
             "Hue",
             "Extra hue displacement in degrees",
             0f64,
             360f64,
             DEFAULT_HUE,
             glib::ParamFlags::READWRITE,
-        )
-    }),
-    subclass::Property("saturation", |name| {
+        ),
         glib::ParamSpec::double(
-            name,
+            "saturation",
             "Saturation",
             "Extra saturation correction",
             // TODO: Docs don't clarify min and max!
@@ -140,30 +134,26 @@ static PROPERTIES: &[subclass::Property] = &[
             f64::MAX,
             DEFAULT_SATURATION,
             glib::ParamFlags::READWRITE,
-        )
-    }),
-    // TODO: Model white balance src+dest as structure
-    /*
-    subclass::Property("temp", |name| {
-        glib::ParamSpec::value_array(
-            name,
-            "Source temperature",
-            "Source white point temperature",
-            &glib::ParamSpec::uint(
-                name,
-                "Source temperature",
-                "Source white point temperature",
-                // TODO: Docs don't clarify min and max!
-                0,
-                std::u32::MAX,
-                0,
-                glib::ParamFlags::READWRITE,
-            ),
-            glib::ParamFlags::READWRITE,
-        )
-    }),
-    */
-];
+        ),
+        // TODO: Model white balance src+dest as structure
+        // glib::ParamSpec::value_array(
+        //     "temp",
+        //     "Source temperature",
+        //     "Source white point temperature",
+        //     &glib::ParamSpec::uint(
+        //         "the temperature",
+        //         "Source temperature",
+        //         "Source white point temperature",
+        //         // TODO: Docs don't clarify min and max!
+        //         0,
+        //         std::u32::MAX,
+        //         0,
+        //         glib::ParamFlags::READWRITE,
+        //     ),
+        //     glib::ParamFlags::READWRITE,
+        // ),
+    ]
+});
 
 static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     gst::DebugCategory::new(
@@ -179,6 +169,7 @@ impl ObjectSubclass for GlLcms {
     type Instance = gst::subclass::ElementInstanceStruct<Self>;
     type Class = subclass::simple::ClassStruct<Self>;
     type Type = super::GlLcms;
+    type Interfaces = ();
 
     // This macro provides some boilerplate
     glib::object_subclass!();
@@ -189,66 +180,80 @@ impl ObjectSubclass for GlLcms {
             state: Mutex::new(None),
         }
     }
-
-    fn class_init(klass: &mut Self::Class) {
-        klass.set_metadata(
-            "Rust LCMS2-based color correction in OpenGL",
-            "Filter/Effect/Converter/Video",
-            env!("CARGO_PKG_DESCRIPTION"),
-            env!("CARGO_PKG_AUTHORS"),
-        );
-
-        klass.install_properties(&PROPERTIES);
-
-        klass.configure(
-            gst_base::subclass::BaseTransformMode::NeverInPlace,
-            false,
-            false,
-        );
-
-        klass.add_rgba_pad_templates();
-    }
 }
 
 impl ObjectImpl for GlLcms {
-    fn set_property(&self, element: &Self::Type, id: usize, value: &glib::Value) {
-        let prop = &PROPERTIES[id];
+    fn properties() -> &'static [glib::ParamSpec] {
+        PROPERTIES.as_ref()
+    }
 
-        gst::gst_info!(CAT, obj: element, "Changing {:?} to {:?}", prop, value);
+    fn set_property(
+        &self,
+        element: &Self::Type,
+        _id: usize,
+        value: &glib::Value,
+        pspec: &glib::ParamSpec,
+    ) {
+        // assert_eq!(pspec, PROPERTIES[id]);
+
+        gst::gst_info!(CAT, obj: element, "Changing {:?} to {:?}", pspec, value);
 
         let mut settings = self.settings.lock().unwrap();
 
-        match prop.0 {
+        match pspec.get_name() {
             "icc" => settings.icc = value.get().expect("Type mismatch"),
             "brightness" => settings.brightness = value.get_some().expect("Type mismatch"),
             "contrast" => settings.contrast = value.get_some().expect("Type mismatch"),
             "hue" => settings.hue = value.get_some().expect("Type mismatch"),
             "saturation" => settings.saturation = value.get_some().expect("Type mismatch"),
             _ => {
-                gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
+                // This means someone added a property to PROPERTIES but forgot to handle it here...
+                gst::gst_error!(CAT, obj: element, "Can't handle {:?}", pspec);
+                panic!("set_property unhandled for {:?}", pspec);
             }
         }
     }
 
-    fn get_property(&self, element: &Self::Type, id: usize) -> glib::Value {
-        let prop = &PROPERTIES[id];
+    fn get_property(
+        &self,
+        element: &Self::Type,
+        _id: usize,
+        pspec: &glib::ParamSpec,
+    ) -> glib::Value {
         let settings = self.settings.lock().unwrap();
 
-        match prop.0 {
+        match pspec.get_name() {
             "icc" => settings.icc.to_value(),
             "brightness" => settings.brightness.to_value(),
             "contrast" => settings.contrast.to_value(),
             "hue" => settings.hue.to_value(),
             "saturation" => settings.saturation.to_value(),
             _ => {
-                gst::gst_error!(CAT, obj: element, "Property {} doesn't exist", prop.0);
-                unimplemented!()
+                gst::gst_error!(CAT, obj: element, "Can't handle {:?}", pspec);
+                panic!("get_property unhandled for {:?}", pspec);
             }
         }
     }
 }
-impl ElementImpl for GlLcms {}
-impl BaseTransformImpl for GlLcms {}
+impl ElementImpl for GlLcms {
+    fn metadata() -> Option<&'static ElementMetadata> {
+        static ELEMENT_METADATA: Lazy<ElementMetadata> = Lazy::new(|| {
+            ElementMetadata::new(
+                "Rust LCMS2-based color correction in OpenGL",
+                "Filter/Effect/Converter/Video",
+                env!("CARGO_PKG_DESCRIPTION"),
+                env!("CARGO_PKG_AUTHORS"),
+            )
+        });
+
+        Some(&*ELEMENT_METADATA)
+    }
+}
+impl BaseTransformImpl for GlLcms {
+    const MODE: BaseTransformMode = BaseTransformMode::NeverInPlace;
+    const PASSTHROUGH_ON_SAME_CAPS: bool = false;
+    const TRANSFORM_IP_ON_PASSTHROUGH: bool = false;
+}
 impl GLBaseFilterImpl for GlLcms {}
 
 fn create_shader(filter: &super::GlLcms, context: &GLContext) -> GLShader {
