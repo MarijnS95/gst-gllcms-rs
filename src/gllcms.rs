@@ -1,4 +1,3 @@
-use glib::subclass;
 use gst::subclass::ElementMetadata;
 use gst_base::subclass::BaseTransformMode;
 use gst_gl::gst::glib;
@@ -81,6 +80,7 @@ struct State {
     current_settings: Option<Settings>,
 }
 
+#[derive(Default)]
 pub struct GlLcms {
     // TODO: Need multi-reader lock?
     settings: Mutex<Settings>,
@@ -163,23 +163,13 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
     )
 });
 
+#[glib::object_subclass]
 impl ObjectSubclass for GlLcms {
     const NAME: &'static str = "gllcms";
     type ParentType = GLFilter;
+    /// Holds our [`PanicPoison`]
     type Instance = gst::subclass::ElementInstanceStruct<Self>;
-    type Class = subclass::simple::ClassStruct<Self>;
     type Type = super::GlLcms;
-    type Interfaces = ();
-
-    // This macro provides some boilerplate
-    glib::object_subclass!();
-
-    fn new() -> Self {
-        Self {
-            settings: Mutex::new(Default::default()),
-            state: Mutex::new(None),
-        }
-    }
 }
 
 impl ObjectImpl for GlLcms {
