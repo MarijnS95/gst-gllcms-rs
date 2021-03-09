@@ -167,8 +167,6 @@ static CAT: Lazy<gst::DebugCategory> = Lazy::new(|| {
 impl ObjectSubclass for GlLcms {
     const NAME: &'static str = "gllcms";
     type ParentType = GLFilter;
-    /// Holds our [`PanicPoison`]
-    type Instance = gst::subclass::ElementInstanceStruct<Self>;
     type Type = super::GlLcms;
 }
 
