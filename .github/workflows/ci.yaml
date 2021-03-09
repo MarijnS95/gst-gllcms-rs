@@ -30,6 +30,10 @@ jobs:
           toolchain: stable
           override: true
           components: rustfmt, clippy
+      - name: Cargo update to refresh cache
+        uses: actions-rs/cargo@v1
+        with:
+          command: update
       - name: Check formatting
         uses: actions-rs/cargo@v1
         with:
