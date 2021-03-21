@@ -399,7 +399,7 @@ impl GLFilterImpl for GlLcms {
 
             let t = match &profiles[..] {
                 [single_profile] => Transform::new(
-                    &single_profile,
+                    single_profile,
                     PixelFormat::RGBA_8,
                     &output_profile,
                     PixelFormat::RGBA_8,
