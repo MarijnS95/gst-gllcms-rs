@@ -50,6 +50,9 @@
 #![allow(clippy::unimplemented, clippy::todo)]
 // END - Embark clippy lints
 
+// Custom extra lints
+#![warn(clippy::single_match_else)]
+
 use gst::glib;
 use gst::subclass::prelude::*;
 use gst_gl::gst;
