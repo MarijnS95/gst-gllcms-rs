@@ -59,3 +59,8 @@ jobs:
         with:
           name: GstGLLcms
           path: target/release/libgstgllcms.so
+      - name: Upload lock file
+        uses: actions/upload-artifact@v2
+        with:
+          name: GstGLLcms-cargo-lock-file
+          path: Cargo.lock
