@@ -433,7 +433,7 @@ impl GLFilterImpl for GlLcms {
                 gl.BufferStorage(
                     gl::SHADER_STORAGE_BUFFER,
                     (source_pixels.len() * std::mem::size_of::<u32>()) as gl::types::GLsizeiptr,
-                    source_pixels.as_ptr() as *const _,
+                    source_pixels.as_ptr().cast(),
                     0,
                 )
             };

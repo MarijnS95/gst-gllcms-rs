@@ -51,7 +51,7 @@
 // END - Embark clippy lints
 
 // Custom extra lints
-#![warn(clippy::single_match_else)]
+#![warn(clippy::single_match_else, clippy::clippy::ptr_as_ptr)]
 
 use gst::glib;
 use gst::subclass::prelude::*;
