@@ -45,6 +45,6 @@ fn plugin_init(plugin: &gst::Plugin) -> Result<(), glib::BoolError> {
         Some(plugin),
         gllcms::GlLcms::NAME,
         gst::Rank::None,
-        gllcms::GlLcms::get_type(),
+        gllcms::GlLcms::type_(),
     )
 }
